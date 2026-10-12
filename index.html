@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StagePlayer – Live Event Audio Player</title>
+  <style>
+    :root {
+      --bg: #0d0f12;
+      --surface: #161a20;
+      --surface2: #1e242c;
+      --border: #2a323d;
+      --text: #e8eaed;
+      --text-dim: #9aa0a6;
+      --accent: #4fc3f7;
+      --accent-hover: #81d4fa;
+      --play: #66bb6a;
+      --stop: #ef5350;
+      --highlight: #263238;
+      --selected: #1a3a4a;
+      --danger: #e57373;
+      --radius: 8px;
+      --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.4;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .logo {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--accent);
+    }
+
+    .logo span {
+      color: var(--text-dim);
+      font-weight: 400;
+      font-size: 0.85rem;
+      margin-left: 8px;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    button, .btn {
+      font-family: inherit;
+      font-size: 0.9rem;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      padding: 8px 14px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    button:hover, .btn:hover {
+      background: #2a323d;
+      border-color: #3a4555;
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: #0d0f12;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+
+    button.primary:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+
+    button.danger {
+      color: var(--danger);
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 0;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+      }
+    }
+
+    .player-panel {
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      gap: 16px;
+      overflow-y: auto;
+      border-right: 1px solid var(--border);
+    }
+
+    .now-playing {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .now-playing .label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+    }
+
+    .track-title {
+      font-size: 1.35rem;
+      font-weight: 600;
+      word-break: break-word;
+      min-height: 1.5em;
+    }
+
+    .track-meta {
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      margin-top: 4px;
+    }
+
+    .status-badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: var(--surface2);
+      color: var(--text-dim);
+      margin-top: 8px;
+    }
+
+    .status-badge.playing {
+      background: rgba(102, 187, 106, 0.2);
+      color: var(--play);
+    }
+
+    .status-badge.paused {
+      background: rgba(79, 195, 247, 0.15);
+      color: var(--accent);
+    }
+
+    .status-badge.stopped {
+      background: rgba(239, 83, 80, 0.15);
+      color: var(--stop);
+    }
+
+    .progress-section {
+      margin-top: 16px;
+    }
+
+    .time-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      font-variant-numeric: tabular-nums;
+      margin-bottom: 6px;
+    }
+
+    .progress-bar-wrap {
+      position: relative;
+      height: 12px;
+      background: var(--surface2);
+      border-radius: 6px;
+      cursor: pointer;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      width: 0%;
+      border-radius: 6px;
+      pointer-events: none;
+      transition: width 0.05s linear;
+    }
+
+    .progress-bar-wrap:hover .progress-bar-fill {
+      background: var(--accent-hover);
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .controls button {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      font-size: 1.3rem;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid var(--border);
+    }
+
+    .controls button.play-btn {
+      width: 64px;
+      height: 64px;
+      background: var(--play);
+      color: #0d0f12;
+      border-color: var(--play);
+      font-size: 1.6rem;
+    }
+
+    .controls button.play-btn:hover {
+      background: #81c784;
+      border-color: #81c784;
+    }
+
+    .controls button.stop-btn {
+      color: var(--stop);
+    }
+
+    .controls button:disabled {
+      opacity: 0.35;
+    }
+
+    .options-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      padding: 12px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+    }
+
+    .options-row label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .options-row input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+    }
+
+    .options-row select {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-family: inherit;
+      font-size: 0.9rem;
+    }
+
+    .file-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .playlist-panel {
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      min-height: 0;
+    }
+
+    .playlist-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .playlist-header h2 {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .playlist-count {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+    }
+
+    .playlist {
+      flex: 1;
+      overflow-y: auto;
+      list-style: none;
+      min-height: 120px;
+    }
+
+    .playlist li {
+      display: grid;
+      grid-template-columns: 36px 1fr auto auto;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.1s;
+    }
+
+    .playlist li:hover {
+      background: var(--highlight);
+    }
+
+    .playlist li.active {
+      background: var(--selected);
+      border-left: 3px solid var(--accent);
+      padding-left: 11px;
+    }
+
+    .playlist li.dragging {
+      opacity: 0.4;
+    }
+
+    .playlist li.drag-over {
+      border-top: 2px solid var(--accent);
+    }
+
+    .playlist li[draggable="true"] {
+      cursor: grab;
+    }
+
+    .playlist li[draggable="true"]:active {
+      cursor: grabbing;
+    }
+
+    .playlist li .num {
+      color: var(--text-dim);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+
+    .playlist li .name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .playlist li .dur {
+      color: var(--text-dim);
+      font-variant-numeric: tabular-nums;
+      font-size: 0.85rem;
+    }
+
+    .playlist li .remove {
+      opacity: 0;
+      background: none;
+      border: none;
+      color: var(--danger);
+      cursor: pointer;
+      font-size: 1.1rem;
+      padding: 2px 6px;
+      line-height: 1;
+    }
+
+    .playlist li:hover .remove {
+      opacity: 1;
+    }
+
+    .playlist-empty {
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 0.95rem;
+    }
+
+    .settings-panel {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .settings-panel.open {
+      display: flex;
+    }
+
+    .settings-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 520px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .settings-card header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .settings-card h2 {
+      font-size: 1.15rem;
+    }
+
+    .settings-body {
+      padding: 20px;
+    }
+
+    .shortcut-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .shortcut-row {
+      display: grid;
+      grid-template-columns: 1fr 140px;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .shortcut-row label {
+      font-size: 0.95rem;
+    }
+
+    .shortcut-input {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.95rem;
+      text-align: center;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .shortcut-input:focus {
+      outline: 2px solid var(--accent);
+      border-color: var(--accent);
+      background: #1a2a35;
+    }
+
+    .shortcut-input.capturing {
+      background: #1a3a2a;
+      border-color: var(--play);
+      color: var(--play);
+    }
+
+    .settings-note {
+      margin-top: 20px;
+      padding: 12px 14px;
+      background: var(--surface2);
+      border-radius: var(--radius);
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+
+    .settings-actions {
+      margin-top: 20px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .message-bar {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 20px;
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      z-index: 50;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s;
+      max-width: 90%;
+      text-align: center;
+    }
+
+    .message-bar.show {
+      opacity: 1;
+    }
+
+    .message-bar.error {
+      border-color: var(--stop);
+      color: var(--danger);
+    }
+
+    footer {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 10px 20px;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    /* Hidden native audio */
+    audio {
+      display: none;
+    }
+
+    /* File input hidden */
+    #fileInput {
+      display: none;
+    }
+
+    .icon {
+      display: inline-block;
+      width: 1em;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">StagePlayer <span>Live Event Player</span></div>
+    <div class="header-actions">
+      <button type="button" id="btnSettings" title="Keyboard shortcuts &amp; settings">⚙ Settings</button>
+      <button type="button" class="primary" id="btnAddFiles" title="Add local MP3 / audio files">+ Add Tracks</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="player-panel">
+      <div class="now-playing">
+        <div class="label">Now Playing</div>
+        <div class="track-title" id="trackTitle">No track selected</div>
+        <div class="track-meta" id="trackMeta"></div>
+        <div class="status-badge stopped" id="statusBadge">Stopped</div>
+
+        <div class="progress-section">
+          <div class="time-row">
+            <span id="timeElapsed">0:00</span>
+            <span id="timeTotal">0:00</span>
+          </div>
+          <div class="progress-bar-wrap" id="progressWrap" title="Click or drag to seek">
+            <div class="progress-bar-fill" id="progressFill"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button type="button" id="btnPrev" title="Previous track" disabled>⏮</button>
+        <button type="button" class="play-btn" id="btnPlay" title="Play / Pause" disabled>▶</button>
+        <button type="button" class="stop-btn" id="btnStop" title="Stop" disabled>■</button>
+        <button type="button" id="btnNext" title="Next track" disabled>⏭</button>
+      </div>
+
+      <div class="options-row">
+        <label>
+          <input type="checkbox" id="optAutoAdvance" checked />
+          Auto-advance when track ends
+        </label>
+        <label>
+          <input type="checkbox" id="optLoop" />
+          Loop playlist
+        </label>
+        <label>
+          When changing track:
+          <select id="optChangeBehaviour" title="Applies to Next, Previous, and clicking a track in the playlist">
+            <option value="play">Always start playback</option>
+            <option value="continue">Keep current state (play only if already playing)</option>
+            <option value="select">Select only (do not start playback)</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="file-actions">
+        <button type="button" id="btnClear" class="danger" title="Clear entire playlist" disabled>Clear Playlist</button>
+      </div>
+    </section>
+
+    <aside class="playlist-panel">
+      <div class="playlist-header">
+        <h2>Playlist</h2>
+        <span class="playlist-count" id="playlistCount">0 tracks</span>
+      </div>
+      <ul class="playlist" id="playlist"></ul>
+      <div class="playlist-empty" id="playlistEmpty">
+        No tracks loaded.<br />
+        Click <strong>+ Add Tracks</strong> to select local MP3 files from this Chromebook.<br />
+        <span style="font-size:0.85em;opacity:0.8">Once loaded, drag tracks to reorder the playlist.</span>
+      </div>
+    </aside>
+  </main>
+
+  <footer>
+    StagePlayer – Audio stays on your device. Shortcuts &amp; settings are saved in this browser only.
+    Page must be focused for keyboard shortcuts to work. Some keys may be reserved by the browser or OS.
+  </footer>
+
+  <div class="message-bar" id="messageBar"></div>
+
+  <!-- Settings modal -->
+  <div class="settings-panel" id="settingsPanel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="settings-card">
+      <header>
+        <h2 id="settingsTitle">Keyboard Shortcuts &amp; Settings</h2>
+        <button type="button" id="btnCloseSettings">✕ Close</button>
+      </header>
+      <div class="settings-body">
+        <p style="margin-bottom:14px;color:var(--text-dim);font-size:0.9rem;">
+          Click a shortcut field, then press any key to assign it. Page Up / Page Down from a presentation clicker are fully supported.
+        </p>
+        <div class="shortcut-list" id="shortcutList">
+          <!-- filled by JS -->
+        </div>
+
+        <div class="settings-note">
+          <strong>Important:</strong> The webpage must remain focused for ordinary keyboard shortcuts to work.
+          Browsers and operating systems may reserve certain keys (e.g. F5, browser navigation keys).
+          Shortcuts are ignored while you are typing in an input field.
+          Preferences are stored in this browser’s local storage and will persist on the same device/profile.
+          Local audio files cannot be remembered after a full page reload for security reasons — you will need to re-select them.
+        </div>
+
+        <div class="settings-actions">
+          <button type="button" id="btnResetShortcuts">Reset shortcuts to defaults</button>
+          <button type="button" class="primary" id="btnSaveSettings">Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="fileInput" multiple accept="audio/*,.mp3,.m4a,.ogg,.wav,.flac,.aac" />
+
+  <audio id="audio" preload="metadata"></audio>
+
+  <script>
+    (function () {
+      "use strict";
+
+      // ---------- Defaults ----------
+      const DEFAULT_SHORTCUTS = {
+        prev: "PageUp",
+        playPause: " ",
+        stop: "Escape",
+        next: "PageDown"
+      };
+
+      const ACTION_LABELS = {
+        prev: "Previous track",
+        playPause: "Play / Pause",
+        stop: "Stop",
+        next: "Next track"
+      };
+
+      // ---------- State ----------
+      let playlist = [];          // { id, name, url, duration, file }
+      let currentIndex = -1;
+      let isPlaying = false;
+      let isStopped = true;       // true when stopped (position reset)
+      let shortcuts = { ...DEFAULT_SHORTCUTS };
+      let capturingAction = null; // which action is currently capturing a key
+
+      // ---------- DOM ----------
+      const audio = document.getElementById("audio");
+      const fileInput = document.getElementById("fileInput");
+      const playlistEl = document.getElementById("playlist");
+      const playlistEmpty = document.getElementById("playlistEmpty");
+      const playlistCount = document.getElementById("playlistCount");
+      const trackTitle = document.getElementById("trackTitle");
+      const trackMeta = document.getElementById("trackMeta");
+      const statusBadge = document.getElementById("statusBadge");
+      const timeElapsed = document.getElementById("timeElapsed");
+      const timeTotal = document.getElementById("timeTotal");
+      const progressFill = document.getElementById("progressFill");
+      const progressWrap = document.getElementById("progressWrap");
+      const btnPlay = document.getElementById("btnPlay");
+      const btnStop = document.getElementById("btnStop");
+      const btnPrev = document.getElementById("btnPrev");
+      const btnNext = document.getElementById("btnNext");
+      const btnClear = document.getElementById("btnClear");
+      const btnAddFiles = document.getElementById("btnAddFiles");
+      const btnSettings = document.getElementById("btnSettings");
+      const settingsPanel = document.getElementById("settingsPanel");
+      const btnCloseSettings = document.getElementById("btnCloseSettings");
+      const btnSaveSettings = document.getElementById("btnSaveSettings");
+      const btnResetShortcuts = document.getElementById("btnResetShortcuts");
+      const shortcutList = document.getElementById("shortcutList");
+      const messageBar = document.getElementById("messageBar");
+      const optAutoAdvance = document.getElementById("optAutoAdvance");
+      const optLoop = document.getElementById("optLoop");
+      const optChangeBehaviour = document.getElementById("optChangeBehaviour");
+
+      // ---------- Helpers ----------
+      function formatTime(sec) {
+        if (!isFinite(sec) || sec < 0) return "0:00";
+        const m = Math.floor(sec / 60);
+        const s = Math.floor(sec % 60);
+        return m + ":" + String(s).padStart(2, "0");
+      }
+
+      function keyDisplayName(key) {
+        if (key === " ") return "Space";
+        if (key === "PageUp") return "Page Up";
+        if (key === "PageDown") return "Page Down";
+        if (key === "ArrowUp") return "Arrow Up";
+        if (key === "ArrowDown") return "Arrow Down";
+        if (key === "ArrowLeft") return "Arrow Left";
+        if (key === "ArrowRight") return "Arrow Right";
+        if (key === "Escape") return "Escape";
+        if (key.length === 1) return key.toUpperCase();
+        return key;
+      }
+
+      function showMessage(text, isError) {
+        messageBar.textContent = text;
+        messageBar.classList.toggle("error", !!isError);
+        messageBar.classList.add("show");
+        clearTimeout(showMessage._t);
+        showMessage._t = setTimeout(() => messageBar.classList.remove("show"), 3200);
+      }
+
+      function persistSettings() {
+        try {
+          const data = {
+            shortcuts,
+            autoAdvance: optAutoAdvance.checked,
+            loop: optLoop.checked,
+            changeBehaviour: optChangeBehaviour.value
+          };
+          localStorage.setItem("stageplayer-settings", JSON.stringify(data));
+        } catch (e) {
+          console.warn("Could not save settings", e);
+        }
+      }
+
+      function loadSettings() {
+        try {
+          const raw = localStorage.getItem("stageplayer-settings");
+          if (!raw) return;
+          const data = JSON.parse(raw);
+          if (data.shortcuts && typeof data.shortcuts === "object") {
+            shortcuts = { ...DEFAULT_SHORTCUTS, ...data.shortcuts };
+          }
+          if (typeof data.autoAdvance === "boolean") optAutoAdvance.checked = data.autoAdvance;
+          if (typeof data.loop === "boolean") optLoop.checked = data.loop;
+          // Support old key name for backwards compatibility
+          const beh = data.changeBehaviour || data.nextBehaviour;
+          if (beh === "play" || beh === "select" || beh === "continue") {
+            optChangeBehaviour.value = beh;
+          }
+        } catch (e) {
+          console.warn("Could not load settings", e);
+        }
+      }
+
+      // ---------- Playlist UI ----------
+      let dragSrcIndex = null;
+
+      function updatePlaylistUI() {
+        playlistEl.innerHTML = "";
+        if (playlist.length === 0) {
+          playlistEmpty.style.display = "block";
+          playlistCount.textContent = "0 tracks";
+          btnClear.disabled = true;
+          return;
+        }
+        playlistEmpty.style.display = "none";
+        playlistCount.textContent = playlist.length + (playlist.length === 1 ? " track" : " tracks");
+        btnClear.disabled = false;
+
+        playlist.forEach((track, i) => {
+          const li = document.createElement("li");
+          if (i === currentIndex) li.classList.add("active");
+          li.dataset.index = i;
+          li.draggable = true;
+
+          const num = document.createElement("span");
+          num.className = "num";
+          num.textContent = (i + 1);
+
+          const name = document.createElement("span");
+          name.className = "name";
+          name.textContent = track.name;
+          name.title = track.name;
+
+          const dur = document.createElement("span");
+          dur.className = "dur";
+          dur.textContent = track.duration != null ? formatTime(track.duration) : "…";
+
+          const remove = document.createElement("button");
+          remove.className = "remove";
+          remove.type = "button";
+          remove.title = "Remove track";
+          remove.textContent = "×";
+          remove.addEventListener("click", (e) => {
+            e.stopPropagation();
+            removeTrack(i);
+          });
+
+          li.append(num, name, dur, remove);
+          li.addEventListener("click", () => selectTrack(i));
+
+          // Drag & drop
+          li.addEventListener("dragstart", (e) => {
+            dragSrcIndex = i;
+            li.classList.add("dragging");
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", String(i));
+          });
+          li.addEventListener("dragend", () => {
+            li.classList.remove("dragging");
+            document.querySelectorAll(".playlist li").forEach((el) => el.classList.remove("drag-over"));
+            dragSrcIndex = null;
+          });
+          li.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+            li.classList.add("drag-over");
+          });
+          li.addEventListener("dragleave", () => {
+            li.classList.remove("drag-over");
+          });
+          li.addEventListener("drop", (e) => {
+            e.preventDefault();
+            li.classList.remove("drag-over");
+            const from = dragSrcIndex;
+            const to = i;
+            if (from === null || from === to) return;
+            reorderPlaylist(from, to);
+          });
+
+          playlistEl.appendChild(li);
+        });
+      }
+
+      function reorderPlaylist(fromIndex, toIndex) {
+        if (fromIndex < 0 || toIndex < 0 || fromIndex >= playlist.length || toIndex >= playlist.length) return;
+        const [item] = playlist.splice(fromIndex, 1);
+        playlist.splice(toIndex, 0, item);
+
+        // Adjust currentIndex so the same track stays selected
+        if (currentIndex === fromIndex) {
+          currentIndex = toIndex;
+        } else if (fromIndex < currentIndex && toIndex >= currentIndex) {
+          currentIndex--;
+        } else if (fromIndex > currentIndex && toIndex <= currentIndex) {
+          currentIndex++;
+        }
+
+        updatePlaylistUI();
+        updateNowPlaying();
+      }
+
+      function updateNowPlaying() {
+        if (currentIndex < 0 || !playlist[currentIndex]) {
+          trackTitle.textContent = "No track selected";
+          trackMeta.textContent = "";
+          statusBadge.textContent = "Stopped";
+          statusBadge.className = "status-badge stopped";
+          timeElapsed.textContent = "0:00";
+          timeTotal.textContent = "0:00";
+          progressFill.style.width = "0%";
+          btnPlay.disabled = true;
+          btnStop.disabled = true;
+          btnPrev.disabled = true;
+          btnNext.disabled = true;
+          btnPlay.textContent = "▶";
+          return;
+        }
+
+        const t = playlist[currentIndex];
+        trackTitle.textContent = t.name;
+        trackMeta.textContent = "Track " + (currentIndex + 1) + " of " + playlist.length;
+        btnPlay.disabled = false;
+        btnStop.disabled = false;
+        btnPrev.disabled = playlist.length < 2;
+        btnNext.disabled = playlist.length < 2;
+
+        if (isPlaying) {
+          statusBadge.textContent = "Playing";
+          statusBadge.className = "status-badge playing";
+          btnPlay.textContent = "⏸";
+        } else if (isStopped) {
+          statusBadge.textContent = "Stopped";
+          statusBadge.className = "status-badge stopped";
+          btnPlay.textContent = "▶";
+        } else {
+          statusBadge.textContent = "Paused";
+          statusBadge.className = "status-badge paused";
+          btnPlay.textContent = "▶";
+        }
+      }
+
+      // ---------- Core playback ----------
+      function loadTrack(index, autoPlay) {
+        if (index < 0 || index >= playlist.length) return;
+        currentIndex = index;
+        const track = playlist[index];
+        audio.src = track.url;
+        audio.load();
+        isStopped = true;
+        isPlaying = false;
+
+        // Immediately reset progress display so the old position does not linger
+        progressFill.style.width = "0%";
+        timeElapsed.textContent = "0:00";
+        timeTotal.textContent = track.duration != null ? formatTime(track.duration) : "0:00";
+
+        updatePlaylistUI();
+        updateNowPlaying();
+
+        if (autoPlay) {
+          const playPromise = audio.play();
+          if (playPromise !== undefined) {
+            playPromise
+              .then(() => {
+                isPlaying = true;
+                isStopped = false;
+                updateNowPlaying();
+              })
+              .catch((err) => {
+                showMessage("Playback failed: " + (err.message || "unknown error"), true);
+              });
+          }
+        }
+      }
+
+      function shouldAutoPlayOnChange(fromEnded) {
+        const mode = optChangeBehaviour.value;
+        if (mode === "play") return true;
+        if (mode === "select") return false;
+        // "continue"
+        if (fromEnded) return true;   // track just finished playing → continue
+        return isPlaying;             // otherwise keep whatever state we are in
+      }
+
+      function selectTrack(index) {
+        if (index === currentIndex && !isStopped) {
+          // already selected and not stopped – do nothing
+          return;
+        }
+        const autoPlay = shouldAutoPlayOnChange(false);
+        loadTrack(index, autoPlay);
+      }
+
+      function playPause() {
+        if (playlist.length === 0) {
+          showMessage("No tracks in playlist. Add files first.");
+          return;
+        }
+        if (currentIndex < 0) {
+          loadTrack(0, true);
+          return;
+        }
+        if (isPlaying) {
+          audio.pause();
+          isPlaying = false;
+          isStopped = false;
+          updateNowPlaying();
+        } else {
+          const p = audio.play();
+          if (p !== undefined) {
+            p.then(() => {
+              isPlaying = true;
+              isStopped = false;
+              updateNowPlaying();
+            }).catch((err) => {
+              showMessage("Could not play: " + (err.message || "error"), true);
+            });
+          }
+        }
+      }
+
+      function stop() {
+        if (currentIndex < 0) return;
+        audio.pause();
+        audio.currentTime = 0;
+        isPlaying = false;
+        isStopped = true;
+        updateNowPlaying();
+        progressFill.style.width = "0%";
+        timeElapsed.textContent = "0:00";
+      }
+
+      function nextTrack() {
+        if (playlist.length === 0) {
+          showMessage("Playlist is empty.");
+          return;
+        }
+        let next = currentIndex + 1;
+        if (next >= playlist.length) {
+          if (optLoop.checked) next = 0;
+          else {
+            showMessage("End of playlist.");
+            return;
+          }
+        }
+        const autoPlay = shouldAutoPlayOnChange(false);
+        loadTrack(next, autoPlay);
+      }
+
+      function prevTrack() {
+        if (playlist.length === 0) {
+          showMessage("Playlist is empty.");
+          return;
+        }
+        // If more than 3 seconds in, restart current track (VLC-like)
+        if (audio.currentTime > 3 && currentIndex >= 0) {
+          audio.currentTime = 0;
+          progressFill.style.width = "0%";
+          timeElapsed.textContent = "0:00";
+          updateNowPlaying();
+          return;
+        }
+        let prev = currentIndex - 1;
+        if (prev < 0) {
+          if (optLoop.checked) prev = playlist.length - 1;
+          else {
+            showMessage("Start of playlist.");
+            return;
+          }
+        }
+        const autoPlay = shouldAutoPlayOnChange(false);
+        loadTrack(prev, autoPlay);
+      }
+
+      function removeTrack(index) {
+        const wasCurrent = index === currentIndex;
+        const wasPlaying = isPlaying;
+
+        // Revoke object URL
+        if (playlist[index] && playlist[index].url) {
+          URL.revokeObjectURL(playlist[index].url);
+        }
+        playlist.splice(index, 1);
+
+        if (playlist.length === 0) {
+          currentIndex = -1;
+          audio.removeAttribute("src");
+          audio.load();
+          isPlaying = false;
+          isStopped = true;
+        } else if (wasCurrent) {
+          // Move to same index (next track) or last
+          const newIndex = Math.min(index, playlist.length - 1);
+          loadTrack(newIndex, wasPlaying);
+        } else if (index < currentIndex) {
+          currentIndex--;
+        }
+        updatePlaylistUI();
+        updateNowPlaying();
+      }
+
+      function clearPlaylist() {
+        playlist.forEach((t) => {
+          if (t.url) URL.revokeObjectURL(t.url);
+        });
+        playlist = [];
+        currentIndex = -1;
+        audio.removeAttribute("src");
+        audio.load();
+        isPlaying = false;
+        isStopped = true;
+        updatePlaylistUI();
+        updateNowPlaying();
+        showMessage("Playlist cleared.");
+      }
+
+      // ---------- File loading ----------
+      function addFiles(fileList) {
+        const files = Array.from(fileList).filter((f) => {
+          const type = (f.type || "").toLowerCase();
+          const name = f.name.toLowerCase();
+          return type.startsWith("audio/") ||
+            name.endsWith(".mp3") || name.endsWith(".m4a") ||
+            name.endsWith(".ogg") || name.endsWith(".wav") ||
+            name.endsWith(".flac") || name.endsWith(".aac");
+        });
+
+        if (files.length === 0) {
+          showMessage("No supported audio files selected.", true);
+          return;
+        }
+
+        let added = 0;
+        files.forEach((file) => {
+          const url = URL.createObjectURL(file);
+          const track = {
+            id: Date.now() + Math.random(),
+            name: file.name.replace(/\.[^/.]+$/, "") || file.name,
+            url,
+            duration: null,
+            file
+          };
+          playlist.push(track);
+          added++;
+
+          // Probe duration
+          const probe = new Audio();
+          probe.preload = "metadata";
+          probe.src = url;
+          probe.addEventListener("loadedmetadata", () => {
+            track.duration = probe.duration;
+            updatePlaylistUI();
+            if (currentIndex === playlist.indexOf(track)) {
+              timeTotal.textContent = formatTime(track.duration);
+            }
+          });
+          probe.addEventListener("error", () => {
+            track.duration = null;
+            // keep it; may still play
+          });
+        });
+
+        updatePlaylistUI();
+        if (currentIndex < 0 && playlist.length > 0) {
+          // Select first but do not auto-play
+          loadTrack(0, false);
+        }
+        showMessage(added + " track" + (added === 1 ? "" : "s") + " added.");
+      }
+
+      // ---------- Shortcuts ----------
+      function buildShortcutUI() {
+        shortcutList.innerHTML = "";
+        Object.keys(ACTION_LABELS).forEach((action) => {
+          const row = document.createElement("div");
+          row.className = "shortcut-row";
+
+          const lab = document.createElement("label");
+          lab.textContent = ACTION_LABELS[action];
+
+          const input = document.createElement("div");
+          input.className = "shortcut-input";
+          input.tabIndex = 0;
+          input.dataset.action = action;
+          input.textContent = keyDisplayName(shortcuts[action]);
+          input.title = "Click then press a key";
+
+          input.addEventListener("click", () => startCapture(action, input));
+          input.addEventListener("keydown", (e) => {
+            if (capturingAction === action) {
+              e.preventDefault();
+              e.stopPropagation();
+              assignKey(action, e.key, input);
+            }
+          });
+
+          row.append(lab, input);
+          shortcutList.appendChild(row);
+        });
+      }
+
+      function startCapture(action, el) {
+        // Cancel previous capture
+        document.querySelectorAll(".shortcut-input.capturing").forEach((n) => {
+          n.classList.remove("capturing");
+          n.textContent = keyDisplayName(shortcuts[n.dataset.action]);
+        });
+        capturingAction = action;
+        el.classList.add("capturing");
+        el.textContent = "Press a key…";
+        el.focus();
+      }
+
+      function assignKey(action, key, el) {
+        // Ignore pure modifier keys
+        if (["Control", "Shift", "Alt", "Meta", "CapsLock", "Tab"].includes(key)) {
+          return;
+        }
+
+        // Check for duplicate
+        const conflict = Object.keys(shortcuts).find(
+          (a) => a !== action && shortcuts[a] === key
+        );
+        if (conflict) {
+          // Swap
+          shortcuts[conflict] = shortcuts[action];
+          const conflictEl = document.querySelector(`.shortcut-input[data-action="${conflict}"]`);
+          if (conflictEl) {
+            conflictEl.textContent = keyDisplayName(shortcuts[conflict]);
+          }
+        }
+
+        shortcuts[action] = key;
+        el.classList.remove("capturing");
+        el.textContent = keyDisplayName(key);
+        capturingAction = null;
+        persistSettings();
+        showMessage("Shortcut for “" + ACTION_LABELS[action] + "” set to " + keyDisplayName(key));
+      }
+
+      function handleGlobalKey(e) {
+        // Ignore when typing in inputs / textareas / contenteditable
+        const tag = (e.target.tagName || "").toLowerCase();
+        if (tag === "input" || tag === "textarea" || tag === "select" || e.target.isContentEditable) {
+          return;
+        }
+        // Also ignore while capturing
+        if (capturingAction) return;
+
+        const key = e.key;
+        let matched = null;
+        for (const action of Object.keys(shortcuts)) {
+          if (shortcuts[action] === key) {
+            matched = action;
+            break;
+          }
+        }
+        if (!matched) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        switch (matched) {
+          case "prev": prevTrack(); break;
+          case "playPause": playPause(); break;
+          case "stop": stop(); break;
+          case "next": nextTrack(); break;
+        }
+      }
+
+      // ---------- Progress / seek ----------
+      function updateProgress() {
+        if (!audio.duration || !isFinite(audio.duration)) {
+          progressFill.style.width = "0%";
+          timeElapsed.textContent = "0:00";
+          return;
+        }
+        const pct = (audio.currentTime / audio.duration) * 100;
+        progressFill.style.width = pct + "%";
+        timeElapsed.textContent = formatTime(audio.currentTime);
+        timeTotal.textContent = formatTime(audio.duration);
+      }
+
+      function seekFromEvent(e) {
+        if (!audio.duration || !isFinite(audio.duration)) return;
+        const rect = progressWrap.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width;
+        const clamped = Math.max(0, Math.min(1, x));
+        audio.currentTime = clamped * audio.duration;
+        isStopped = false;
+        updateProgress();
+      }
+
+      // ---------- Audio events ----------
+      audio.addEventListener("timeupdate", updateProgress);
+      audio.addEventListener("ended", () => {
+        isPlaying = false;
+        isStopped = true;
+        updateNowPlaying();
+        if (optAutoAdvance.checked) {
+          let next = currentIndex + 1;
+          if (next >= playlist.length) {
+            if (optLoop.checked) next = 0;
+            else {
+              showMessage("Playlist finished.");
+              return;
+            }
+          }
+          // Respect the "When changing track" setting (select-only will not auto-play)
+          const autoPlay = shouldAutoPlayOnChange(true);
+          loadTrack(next, autoPlay);
+        } else {
+          // stay on current track, stopped at end
+          updateProgress();
+        }
+      });
+      audio.addEventListener("error", () => {
+        showMessage("Error loading or playing this file. It may be unsupported.", true);
+        isPlaying = false;
+        updateNowPlaying();
+      });
+      audio.addEventListener("loadedmetadata", () => {
+        if (currentIndex >= 0 && playlist[currentIndex]) {
+          playlist[currentIndex].duration = audio.duration;
+          timeTotal.textContent = formatTime(audio.duration);
+          updatePlaylistUI();
+        }
+      });
+
+      // ---------- Event listeners ----------
+      btnAddFiles.addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", () => {
+        if (fileInput.files && fileInput.files.length) {
+          addFiles(fileInput.files);
+          fileInput.value = "";
+        }
+      });
+
+      btnPlay.addEventListener("click", playPause);
+      btnStop.addEventListener("click", stop);
+      btnPrev.addEventListener("click", prevTrack);
+      btnNext.addEventListener("click", nextTrack);
+      btnClear.addEventListener("click", () => {
+        if (confirm("Clear the entire playlist?")) clearPlaylist();
+      });
+
+      progressWrap.addEventListener("click", seekFromEvent);
+      // Simple drag seek
+      let seeking = false;
+      progressWrap.addEventListener("mousedown", (e) => {
+        seeking = true;
+        seekFromEvent(e);
+      });
+      window.addEventListener("mousemove", (e) => {
+        if (seeking) seekFromEvent(e);
+      });
+      window.addEventListener("mouseup", () => { seeking = false; });
+
+      // Options persistence
+      [optAutoAdvance, optLoop, optChangeBehaviour].forEach((el) => {
+        el.addEventListener("change", persistSettings);
+      });
+
+      // Settings panel
+      btnSettings.addEventListener("click", () => {
+        buildShortcutUI();
+        settingsPanel.classList.add("open");
+      });
+      btnCloseSettings.addEventListener("click", () => {
+        capturingAction = null;
+        settingsPanel.classList.remove("open");
+      });
+      btnSaveSettings.addEventListener("click", () => {
+        capturingAction = null;
+        settingsPanel.classList.remove("open");
+        persistSettings();
+      });
+      btnResetShortcuts.addEventListener("click", () => {
+        shortcuts = { ...DEFAULT_SHORTCUTS };
+        buildShortcutUI();
+        persistSettings();
+        showMessage("Shortcuts reset to defaults.");
+      });
+
+      // Close settings on backdrop click
+      settingsPanel.addEventListener("click", (e) => {
+        if (e.target === settingsPanel) {
+          capturingAction = null;
+          settingsPanel.classList.remove("open");
+        }
+      });
+
+      // Global keyboard
+      document.addEventListener("keydown", handleGlobalKey, true);
+
+      // ---------- Init ----------
+      loadSettings();
+      updatePlaylistUI();
+      updateNowPlaying();
+      buildShortcutUI();
+
+      // Expose for debugging if needed
+      window.StagePlayer = {
+        getPlaylist: () => playlist,
+        getShortcuts: () => ({ ...shortcuts }),
+        playPause, stop, nextTrack, prevTrack
+      };
+    })();
+  </script>
+</body>
+</html>
